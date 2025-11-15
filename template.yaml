@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Apollo GraphQL API with Aurora Postgres + PostGIS
+
+Resources:
+
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: "14.6"   # Aurora Postgres version supporting PostGIS
+      DBClusterIdentifier: aurora-postgis-cluster
+      MasterUsername: postgresadmin
+      MasterUserPassword: MySecurePassword123   # ⚠️ Replace with Secrets Manager in production
+      BackupRetentionPeriod: 1
+      DBSubnetGroupName: !Ref AuroraSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref AuroraSecurityGroup
+
+  AuroraSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora
+      SubnetIds:
+        - subnet-abc123
+        - subnet-def456
+
+  AuroraSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Lambda access to Aurora
+      VpcId: vpc-xyz789
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda SG
+      VpcId: vpc-xyz789
+
+  GraphQLLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  GraphQLLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: GraphQLApiLambda
+      Runtime: nodejs18.x
+      Handler: index.graphqlHandler
+      Role: !GetAtt GraphQLLambdaRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - subnet-abc123
+          - subnet-def456
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
+          DB_PORT: "5432"
+          DB_NAME: "postgres"
+          DB_USER: "postgresadmin"
+          DB_PASSWORD: "MySecurePassword123"
+      Code:
+        ZipFile: |
+          const { ApolloServer } = require('@apollo/server');
+          const { startServerAndCreateLambdaHandler } = require('@as-integrations/aws-lambda');
+          const { Pool } = require('pg');
+
+          const pool = new Pool({
+            host: process.env.DB_HOST,
+            port: process.env.DB_PORT,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+            database: process.env.DB_NAME
+          });
+
+          const typeDefs = `type Query { hello: String }`;
+          const resolvers = { Query: { hello: () => "Hello from Aurora + Apollo!" } };
+
+          const server = new ApolloServer({ typeDefs, resolvers });
+          exports.graphqlHandler = startServerAndCreateLambdaHandler(server);
+
+  GraphQLApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: GraphQLApi
+      ProtocolType: HTTP
+
+  GraphQLIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref GraphQLApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GraphQLLambda.Arn}/invocations
+      PayloadFormatVersion: "2.0"
+
+  GraphQLRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref GraphQLApi
+      RouteKey: "POST /graphql"
+      Target: !Join [ "/", [ "integrations", !Ref GraphQLIntegration ] ]
+
+  GraphQLStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref GraphQLApi
+      StageName: dev
+      AutoDeploy: true
+
+  GraphQLPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GraphQLLambda
+      Principal: apigateway.amazonaws.com
