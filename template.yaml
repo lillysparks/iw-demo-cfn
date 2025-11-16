@@ -3,6 +3,128 @@ Description: Apollo GraphQL API with Aurora Postgres + PostGIS
 
 Resources:
 
+  # --- VPC ---
+  GraphQLVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: GraphQLVPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref GraphQLVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # --- Public Subnet (Lambda goes here for demo to avoid NAT Gateway cost) ---
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GraphQLVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnetA
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref GraphQLVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  # --- Private Subnets (Aurora goes here, best practice) ---
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GraphQLVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnetA
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GraphQLVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnetB
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref GraphQLVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRT
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # --- Aurora DB Subnet Group (Aurora requires at least two AZs) ---
+  AuroraSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Aurora private subnets
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+      DBSubnetGroupName: GraphQLAuroraSubnetGroup
+
+  # --- Security Groups ---
+  AuroraSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Lambda access to Aurora
+      VpcId: !Ref GraphQLVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda SG
+      VpcId: !Ref GraphQLVPC
+      # Outbound is allowed by default
+
   # --- Cognito User Pool ---
   GraphQLUserPool:
     Type: AWS::Cognito::UserPool
@@ -35,12 +157,11 @@ Resources:
       Domain: !Sub "${AWS::StackName}-graphql"
       UserPoolId: !Ref GraphQLUserPool
 
-
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     Properties:
       Engine: aurora-postgresql
-      EngineVersion: "14.6"   # Aurora Postgres version supporting PostGIS
+      EngineVersion: "14.6"
       DBClusterIdentifier: aurora-postgis-cluster
       MasterUsername: postgresadmin
       MasterUserPassword: MySecurePassword123   # ⚠️ Replace with Secrets Manager in production
@@ -49,31 +170,7 @@ Resources:
       VpcSecurityGroupIds:
         - !Ref AuroraSecurityGroup
 
-  AuroraSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Subnet group for Aurora
-      SubnetIds:
-        - subnet-abc123
-        - subnet-def456
-
-  AuroraSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow Lambda access to Aurora
-      VpcId: vpc-xyz789
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
-
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Lambda SG
-      VpcId: vpc-xyz789
-
+  # --- Lambda Role ---
   GraphQLLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -87,6 +184,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
 
+  # --- Lambda Function (in public subnet for demo) ---
   GraphQLLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -98,8 +196,7 @@ Resources:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
         SubnetIds:
-          - subnet-abc123
-          - subnet-def456
+          - !Ref PublicSubnetA   # Lambda in public subnet for demo (avoids NAT cost)
       Environment:
         Variables:
           DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
