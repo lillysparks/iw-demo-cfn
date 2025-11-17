@@ -208,6 +208,14 @@ Resources:
       VpcSecurityGroupIds:
         - !Ref AuroraSecurityGroup
 
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.medium
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      PubliclyAccessible: false
+
   GraphQLLambdaRole:
     Type: AWS::IAM::Role
     Properties:
