@@ -1,5 +1,5 @@
 import { ApolloServer } from "@apollo/server";
-import { startServerAndCreateLambdaHandler } from "@as-integrations/aws-lambda";
+import { startServerAndCreateLambdaHandler, handlers } from "@as-integrations/aws-lambda";
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 import { Pool } from "pg";
@@ -70,11 +70,29 @@ export const healthHandler = async (
 };
 
 // GraphQL handler
-export const graphqlHandler = startServerAndCreateLambdaHandler(server, {
-  context: async ({ event }: { event: APIGatewayProxyEventV2 }) => {
-    const user = await verifyToken(event.headers?.authorization);
-    return { user };
+// Create a request handler for API Gateway v2 events and attach a custom error formatter.
+const apiGatewayHandler = handlers.createAPIGatewayProxyEventV2RequestHandler();
+const requestHandler = {
+  fromEvent: apiGatewayHandler.fromEvent,
+  toSuccessResult: apiGatewayHandler.toSuccessResult,
+  toErrorResult: (error: unknown) => {
+    console.error('GraphQL error (toErrorResult):', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Internal Server Error' }),
+    };
   },
-} as any); // check on type error
+};
+
+export const graphqlHandler = startServerAndCreateLambdaHandler(
+  server,
+  requestHandler,
+  {
+    context: async ({ event }: { event: APIGatewayProxyEventV2 }) => {
+      const user = await verifyToken(event.headers?.authorization);
+      return { user };
+    },
+  }
+);
 
 
