@@ -242,6 +242,7 @@ Resources:
 
   GraphQLLambda:
     Type: AWS::Serverless::Function
+    DependsOn: AuroraInstance
     Properties:
       FunctionName: GraphQLApiLambda
       Handler: dist/index.graphqlHandler
