@@ -68,6 +68,22 @@ Resources:
       SubnetId: !Ref PublicSubnetA
       RouteTableId: !Ref PublicRouteTable
 
+  # NAT Gateway for private subnets to reach internet
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: NatGateway
+
   # --- Private Subnets (Aurora goes here, best practice) ---
   PrivateSubnetA:
     Type: AWS::EC2::Subnet
@@ -98,6 +114,13 @@ Resources:
       Tags:
         - Key: Name
           Value: PrivateRT
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
 
   PrivateSubnetARouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -220,7 +243,8 @@ Resources:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
         SubnetIds:
-          - !Ref PublicSubnetA
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
       Environment:
         Variables:
           DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
