@@ -298,3 +298,23 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref GraphQLLambda
       Principal: apigateway.amazonaws.com
+
+
+Outputs:
+
+  GraphQLApiEndpoint:
+    Description: Public URL for the GraphQL API
+    Value: !Sub "https://${GraphQLApi}.execute-api.${AWS::Region}.amazonaws.com/dev/graphql"
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref GraphQLUserPool
+
+  CognitoAppClientId:
+    Description: Cognito App Client ID
+    Value: !Ref GraphQLUserPoolClient
+
+  AuroraClusterEndpoint:
+    Description: Aurora Cluster Endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+
