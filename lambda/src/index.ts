@@ -41,9 +41,18 @@ const typeDefs = `
     countries: [Country!]!
   }
 
+  type Mutation {
+    initCountriesTable: MutationResult!
+  }
+
   type Country {
     id: Int
     name: String!
+  }
+
+  type MutationResult {
+    success: Boolean!
+    message: String!
   }
 `;
 

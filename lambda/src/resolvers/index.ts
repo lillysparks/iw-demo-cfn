@@ -12,5 +12,8 @@ export function mergeResolvers() {
         `Hello ${ctx.user?.email || "guest"} from Aurora + Cognito!`,
       ...countriesResolvers.Query,
     },
+    Mutation: {
+      ...countriesResolvers.Mutation,
+    },
   };
 }
