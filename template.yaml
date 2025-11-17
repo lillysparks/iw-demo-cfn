@@ -256,12 +256,6 @@ Resources:
       StageName: dev
       AutoDeploy: true
 
-  GraphQLPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref GraphQLLambda
-      Principal: apigateway.amazonaws.com
 
   # CodePipeline definition
   GraphQLPipeline:
