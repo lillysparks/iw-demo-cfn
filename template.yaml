@@ -367,6 +367,12 @@ Resources:
                 Action:
                   - iam:PassRole
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - codebuild:BatchGetProjects
+                Resource: arn:aws:codebuild:us-east-1:920671455518:project/GraphQLBuildProject
 
 
   # IAM role for CodeBuild project
