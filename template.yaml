@@ -353,7 +353,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - codestar-connections:UseConnection
-                Resource: arn:aws:codeconnections:us-east-1:920671455518:connection/3d4db5bf-d87c-47bb-83d8-3faf92ba204e
+                Resource: arn:aws:codeconnections:us-east-1:920671455518:connection/*
               - Effect: Allow
                 Action:
                   - cloudformation:CreateChangeSet
