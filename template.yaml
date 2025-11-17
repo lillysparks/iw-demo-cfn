@@ -9,9 +9,9 @@ Globals:
     MemorySize: 512
 
 Parameters:
-  PipelineBucketArn:
+  PipelineBucketName:
     Type: String
-    Description: S3 bucket for SAM/CodePipeline artifacts
+    Description: S3 bucket name for SAM/CodePipeline artifacts
   AuroraSecretArn:
     Type: String
     Description: ARN of an existing Secrets Manager secret containing DB credentials
@@ -266,7 +266,7 @@ Resources:
       RoleArn: !GetAtt PipelineRole.Arn
       ArtifactStore:
         Type: S3
-        Location: !Ref PipelineBucketArn
+        Location: !Ref PipelineBucketName
       Stages:
         - Name: Source
           Actions:
@@ -349,7 +349,7 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:GetBucketLocation
-                Resource: !Sub "${PipelineBucketArn}/*"
+                Resource: !Sub "arn:aws:s3:::${PipelineBucketName}/*"
               - Effect: Allow
                 Action:
                   - codestar-connections:UseConnection
@@ -444,7 +444,7 @@ Outputs:
 
   ArtifactBucketName:
     Description: S3 bucket for SAM/CodePipeline artifacts
-    Value: !Ref PipelineBucketArn
+    Value: !Ref PipelineBucketName
     Export:
       Name: !Sub "${AWS::StackName}-ArtifactBucket"
 
