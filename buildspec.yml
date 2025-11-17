@@ -20,7 +20,7 @@ phases:
           --output-template-file packaged.yaml
       - sam deploy \
           --template-file packaged.yaml \
-          --stack-name graphql-demo \
+          --stack-name iw-demo-cfn \
           --capabilities CAPABILITY_IAM \
           --no-confirm-changeset \
           --no-fail-on-empty-changeset
