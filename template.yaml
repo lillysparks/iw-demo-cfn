@@ -325,10 +325,6 @@ Resources:
         Type: CODEPIPELINE
       TimeoutInMinutes: 30
 
-  # S3 bucket to store pipeline artifacts
-  PipelineBucket:
-    Type: AWS::S3::Bucket
-
   # IAM role for CodePipeline itself
   PipelineRole:
     Type: AWS::IAM::Role
