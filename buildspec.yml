@@ -4,21 +4,25 @@ phases:
   install:
     runtime-versions:
       nodejs: 18
+      python: 3.11
     commands:
-      - npm install -g aws-sam-cli
+      - pip install --upgrade pip
+      - pip install aws-sam-cli
   pre_build:
     commands:
+      - echo "Install & build lambda"
       - cd lambda
-      - npm install
+      - npm ci
       - npm run build
       - cd ..
   build:
     commands:
+      - echo "Running sam build"
       - sam build
-      - sam package
-      - sam deploy \
-          --template-file packaged.yaml \
-          --stack-name iw-demo-cfn \
-          --capabilities CAPABILITY_IAM \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset
+      - echo "Packaging to S3 bucket configured in samconfig.toml"
+      - sam package --s3-bucket iw-demo-cfn-artifacts-us-east-1 --output-template-file packaged.yaml
+      - echo "Deploying packaged template"
+      - aws cloudformation deploy --template-file packaged.yaml --stack-name iw-demo-cfn --capabilities CAPABILITY_IAM
+artifacts:
+  files:
+    - packaged.yaml
