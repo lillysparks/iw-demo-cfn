@@ -13,7 +13,7 @@ Resources:
   AuroraSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Ref AuroraSecret
+      Name: AuroraSecret
       Description: Master credentials for Aurora cluster
 
   # --- VPC ---
