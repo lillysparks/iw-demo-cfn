@@ -1,3 +1,3 @@
-template-file-path: packaged.yaml
+template-file-path: BuildOutput::packaged.yaml
 parameters: {}
 tags: {}
