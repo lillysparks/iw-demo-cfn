@@ -15,9 +15,7 @@ phases:
   build:
     commands:
       - sam build
-      - sam package \
-          --s3-bucket $ARTIFACT_BUCKET \
-          --output-template-file packaged.yaml
+      - sam package
       - sam deploy \
           --template-file packaged.yaml \
           --stack-name iw-demo-cfn \

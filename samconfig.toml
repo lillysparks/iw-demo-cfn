@@ -5,6 +5,10 @@ version = 0.1
 # Use container builds if you want parity with Lambda runtime
 use_container = false
 
+[default.package]
+s3_bucket = "iw-demo-cfn-artifacts-us-east-1"
+output_template_file = "packaged.yaml"
+
 [default.deploy]
 stack_name = "iw-demo-cfn"
 s3_bucket = "iw-demo-cfn-artifacts-us-east-1"
