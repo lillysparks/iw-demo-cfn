@@ -94,8 +94,8 @@ const apolloHandler = startServerAndCreateLambdaHandler(
 
 // Dispatch wrapper: route GET /health to healthHandler, everything else to Apollo
 export const graphqlHandler = async (event: any, context: any, callback?: any) => {
-  // Seed database on first invocation
-  await seedDatabaseIfNeeded();
+  // Temporarily disable seeding to test if queries work
+  // await seedDatabaseIfNeeded();
 
   const method = event?.requestContext?.http?.method || event?.httpMethod || '';
   const path = event?.rawPath || event?.requestContext?.http?.path || event?.path || '';
