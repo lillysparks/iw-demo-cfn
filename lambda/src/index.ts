@@ -72,8 +72,7 @@ export const healthHandler = async (
 // GraphQL handler
 const apiGatewayHandler = handlers.createAPIGatewayProxyEventV2RequestHandler();
 
-
-export const graphqlHandler = startServerAndCreateLambdaHandler(
+const apolloHandler = startServerAndCreateLambdaHandler(
   server,
   {
     ...apiGatewayHandler,
@@ -92,5 +91,17 @@ export const graphqlHandler = startServerAndCreateLambdaHandler(
     },
   }
 );
+
+// Dispatch wrapper: route GET /health to healthHandler, everything else to Apollo
+export const graphqlHandler = async (event: any, context: any, callback?: any) => {
+  const method = event?.requestContext?.http?.method || event?.httpMethod || '';
+  const path = event?.rawPath || event?.requestContext?.http?.path || event?.path || '';
+
+  if (method === 'GET' && path.endsWith('/health')) {
+    return healthHandler(event);
+  }
+
+  return apolloHandler(event, context, callback);
+};
 
 
