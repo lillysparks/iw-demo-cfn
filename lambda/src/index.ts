@@ -72,21 +72,21 @@ export const healthHandler = async (
 // GraphQL handler
 // Create a request handler for API Gateway v2 events and attach a custom error formatter.
 const apiGatewayHandler = handlers.createAPIGatewayProxyEventV2RequestHandler();
-const requestHandler = {
-  fromEvent: apiGatewayHandler.fromEvent,
-  toSuccessResult: apiGatewayHandler.toSuccessResult,
-  toErrorResult: (error: unknown) => {
-    console.error('GraphQL error (toErrorResult):', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal Server Error' }),
-    };
-  },
-};
+// const requestHandler = {
+//   fromEvent: apiGatewayHandler.fromEvent,
+//   toSuccessResult: apiGatewayHandler.toSuccessResult,
+//   toErrorResult: (error: unknown) => {
+//     console.error('GraphQL error (toErrorResult):', error);
+//     return {
+//       statusCode: 500,
+//       body: JSON.stringify({ error: 'Internal Server Error' }),
+//     };
+//   },
+// };
 
 export const graphqlHandler = startServerAndCreateLambdaHandler(
   server,
-  requestHandler,
+  apiGatewayHandler,
   {
     context: async ({ event }: { event: APIGatewayProxyEventV2 }) => {
       const user = await verifyToken(event.headers?.authorization);
