@@ -9,12 +9,7 @@ let isSeeded = false;
  * Checks if countries table exists; if not, loads seed data.
  */
 export async function seedDatabaseIfNeeded(): Promise<void> {
-  if (isSeeded) {
-    console.log('Database already seeded in this Lambda execution.');
-    return;
-  }
-
-  console.log('seedDatabaseIfNeeded: starting');
+  console.log('seedDatabaseIfNeeded: starting, isSeeded =', isSeeded);
   console.log('Environment vars:', {
     DB_HOST: process.env.DB_HOST,
     DB_PORT: process.env.DB_PORT,
@@ -22,6 +17,11 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
     DB_NAME: process.env.DB_NAME,
     hasPassword: !!process.env.DB_PASSWORD,
   });
+
+  if (isSeeded) {
+    console.log('Database already seeded in this Lambda execution.');
+    return;
+  }
 
   let client;
   try {
