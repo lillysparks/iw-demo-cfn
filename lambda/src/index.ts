@@ -1,0 +1,59 @@
+import { ApolloServer } from "@apollo/server";
+import { startServerAndCreateLambdaHandler } from "@as-integrations/aws-lambda";
+import jwt from "jsonwebtoken";
+import jwksClient from "jwks-rsa";
+import { Pool } from "pg";
+import type { APIGatewayProxyEventV2 } from "aws-lambda";
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+
+const client = jwksClient({
+  jwksUri: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`,
+});
+
+function getKey(header: any, callback: any) {
+  client.getSigningKey(header.kid, (err, key) => {
+    const signingKey = key?.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+async function verifyToken(authHeader?: string) {
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return null;
+  return new Promise((resolve) =>
+    jwt.verify(
+      token,
+      getKey,
+      {
+        algorithms: ["RS256"],
+        audience: process.env.COGNITO_CLIENT_ID,
+        issuer: process.env.COGNITO_ISSUER,
+      },
+      (err, decoded) => resolve(err ? null : decoded)
+    )
+  );
+}
+
+const typeDefs = `type Query { hello: String }`;
+const resolvers = {
+  Query: {
+    hello: (_: any, __: any, ctx: any) =>
+      `Hello ${ctx.user?.email || "guest"} from Aurora + Cognito!`,
+  },
+};
+
+const server = new ApolloServer({ typeDefs, resolvers });
+export const graphqlHandler = startServerAndCreateLambdaHandler(server, {
+  context: async ({ event }: { event: APIGatewayProxyEventV2 }) => {
+    const user = await verifyToken(event.headers?.authorization);
+    return { user };
+  },
+} as any); // check on type error
+

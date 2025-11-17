@@ -1,7 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Apollo GraphQL API with Aurora Postgres + PostGIS
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 30
+    MemorySize: 512
 
 Resources:
+
+  AuroraSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref DbSecretName
+      Description: Master credentials for Aurora cluster
 
   # --- VPC ---
   GraphQLVPC:
@@ -163,14 +176,13 @@ Resources:
       Engine: aurora-postgresql
       EngineVersion: "14.6"
       DBClusterIdentifier: aurora-postgis-cluster
-      MasterUsername: postgresadmin
-      MasterUserPassword: MySecurePassword123   # ⚠️ Replace with Secrets Manager in production
+      MasterUsername: "{{resolve:secretsmanager:AuroraSecret:SecretString:username}}"
+      MasterUserPassword: "{{resolve:secretsmanager:AuroraSecret:SecretString:password}}"
       BackupRetentionPeriod: 1
       DBSubnetGroupName: !Ref AuroraSubnetGroup
       VpcSecurityGroupIds:
         - !Ref AuroraSecurityGroup
 
-  # --- Lambda Role ---
   GraphQLLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -184,84 +196,36 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      Policies:
+        - PolicyName: AuroraSecretAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref AuroraSecret
 
-  # --- Lambda Function (in public subnet for demo) ---
   GraphQLLambda:
-    Type: AWS::Lambda::Function
+    Type: AWS::Serverless::Function
     Properties:
       FunctionName: GraphQLApiLambda
-      Runtime: nodejs18.x
-      Handler: index.graphqlHandler
+      Handler: dist/index.graphqlHandler
+      CodeUri: lambda/
       Role: !GetAtt GraphQLLambdaRole.Arn
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-          - !Ref PublicSubnetA   # Lambda in public subnet for demo (avoids NAT cost)
       Environment:
         Variables:
-          DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
-          DB_PORT: "5432"
-          DB_NAME: "postgres"
-          DB_USER: "postgresadmin"
-          DB_PASSWORD: "MySecurePassword123"
+          DB_SECRET_ARN: !Ref AuroraSecret
           COGNITO_USERPOOL_ID: !Ref GraphQLUserPool
           COGNITO_CLIENT_ID: !Ref GraphQLUserPoolClient
           COGNITO_ISSUER: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${GraphQLUserPool}"
-      Code:
-        ZipFile: |
-          const { ApolloServer } = require('@apollo/server');
-          const { startServerAndCreateLambdaHandler } = require('@as-integrations/aws-lambda');
-          const jwt = require('jsonwebtoken');
-          const jwksClient = require('jwks-rsa');
-          const { Pool } = require('pg');
-
-          const pool = new Pool({
-            host: process.env.DB_HOST,
-            port: process.env.DB_PORT,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME
-          });
-
-          const client = jwksClient({
-            jwksUri: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`
-          });
-
-          function getKey(header, callback) {
-            client.getSigningKey(header.kid, (err, key) => {
-              const signingKey = key.getPublicKey();
-              callback(null, signingKey);
-            });
-          }
-
-          async function verifyToken(authHeader) {
-            const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-            if (!token) return null;
-            return new Promise((resolve) =>
-              jwt.verify(token, getKey, {
-                algorithms: ['RS256'],
-                audience: process.env.COGNITO_CLIENT_ID,
-                issuer: process.env.COGNITO_ISSUER
-              }, (err, decoded) => resolve(err ? null : decoded))
-            );
-          }
-
-          const typeDefs = `type Query { hello: String }`;
-          const resolvers = {
-            Query: {
-              hello: (_, __, ctx) => `Hello ${ctx.user?.email || "guest"} from Aurora + Cognito!`
-            }
-          };
-
-          const server = new ApolloServer({ typeDefs, resolvers });
-          exports.graphqlHandler = startServerAndCreateLambdaHandler(server, {
-            context: async ({ event }) => {
-              const user = await verifyToken(event.headers?.authorization);
-              return { user };
-            }
-          });
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /graphql
+            Method: post
 
   # --- API Gateway ---
   GraphQLApi:
@@ -299,6 +263,157 @@ Resources:
       FunctionName: !Ref GraphQLLambda
       Principal: apigateway.amazonaws.com
 
+  # CodePipeline definition
+  GraphQLPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: 1
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ConnectionArn: arn:aws:codeconnections:us-east-1:920671455518:connection/9dacd362-6408-467a-b0e8-a4cd2a535cb2
+                FullRepositoryId: lillysparks/iw-demo-cfn
+                BranchName: main
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: GraphQLBuildProject
+  
+  GraphQLBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: GraphQLBuildProject
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 30
+
+  # S3 bucket to store pipeline artifacts
+  PipelineBucket:
+    Type: AWS::S3::Bucket
+
+  # IAM role for CodePipeline itself
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                Resource: !Sub "${PipelineBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - codestar-connections:UseConnection
+                Resource: arn:aws:codeconnections:us-east-1:920671455518:connection/9dacd362-6408-467a-b0e8-a4cd2a535cb2
+
+
+  # IAM role for CodeBuild project
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Allow CloudFormation deploy
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateStack
+                Resource: "*"
+              # Allow S3 for artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                Resource: "*"
+              # Allow Lambda packaging/deploy
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:CreateFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetPolicy
+                Resource: "*"
+              # Allow IAM role usage for stack resources
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: "*"
+              # Allow Secrets Manager if your Lambda fetches DB creds
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: "*"
+
+  PipelineBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-artifacts-${AWS::Region}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireArtifacts
+            Status: Enabled
+            ExpirationInDays: 30
 
 Outputs:
 
@@ -318,3 +433,16 @@ Outputs:
     Description: Aurora Cluster Endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
 
+  ArtifactBucketName:
+    Description: S3 bucket for SAM/CodePipeline artifacts
+    Value: !Ref PipelineBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-ArtifactBucket"
+
+  PipelineConsoleUrl:
+    Description: Console URL to view the CodePipeline
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${GraphQLPipeline}/view?region=${AWS::Region}"
+
+  PipelineName:
+    Description: Name of the CodePipeline
+    Value: !Ref GraphQLPipeline

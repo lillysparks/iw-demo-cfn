@@ -1,0 +1,15 @@
+version = 0.1
+
+[default]
+[default.build]
+# Use container builds if you want parity with Lambda runtime
+use_container = false
+
+[default.deploy]
+stack_name = "iw-demo-cfn"
+s3_bucket = "iw-demo-cfn-artifacts-us-east-1"
+s3_prefix = "graphql"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false
