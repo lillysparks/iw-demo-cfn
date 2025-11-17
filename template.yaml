@@ -256,7 +256,7 @@ Resources:
       Environment:
         Variables:
           DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
-          DB_PORT: !GetAtt AuroraCluster.Endpoint.Port
+          DB_PORT: "5432"
           DB_USER: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
           DB_PASSWORD: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
           DB_NAME: postgres
