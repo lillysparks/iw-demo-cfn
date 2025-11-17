@@ -216,8 +216,18 @@ Resources:
       Handler: dist/index.graphqlHandler
       CodeUri: lambda/
       Role: !GetAtt GraphQLLambdaRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PublicSubnetA
       Environment:
         Variables:
+          DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
+          DB_PORT: !GetAtt AuroraCluster.Endpoint.Port
+          DB_USER: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
+          DB_PASSWORD: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
+          DB_NAME: postgres
           DB_SECRET_ARN: !Ref AuroraSecretArn
           COGNITO_USERPOOL_ID: !Ref GraphQLUserPool
           COGNITO_CLIENT_ID: !Ref GraphQLUserPoolClient
