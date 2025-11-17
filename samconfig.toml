@@ -14,7 +14,7 @@ stack_name = "iw-demo-cfn"
 s3_bucket = "iw-demo-cfn-artifacts-us-east-1"
 s3_prefix = "graphql"
 region = "us-east-1"
-capabilities = "CAPABILITY_IAM"
+capabilities = "CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND"
 confirm_changeset = false
 fail_on_empty_changeset = false
 parameter_overrides = "PipelineBucketName=iw-demo-cfn-artifacts-us-east-1 AuroraSecretArn=arn:aws:secretsmanager:us-east-1:920671455518:secret:AuroraSecret-Egw1Zv"

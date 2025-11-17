@@ -309,7 +309,7 @@ Resources:
               Configuration:
                 ActionMode: CREATE_UPDATE
                 StackName: iw-demo-cfn
-                Capabilities: CAPABILITY_IAM
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
                 TemplatePath: BuildOutput::packaged.yaml
                 RoleArn: !GetAtt CloudFormationDeployRole.Arn
                 ParameterOverrides: '{"PipelineBucketName":"iw-demo-cfn-artifacts-us-east-1","AuroraSecretArn":"arn:aws:secretsmanager:us-east-1:920671455518:secret:AuroraSecret-Egw1Zv"}'
