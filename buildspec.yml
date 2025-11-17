@@ -15,17 +15,15 @@ phases:
       - npm ci
       - npm run build
       - cd ..
+      - echo "Downloading seed data"
+      - mkdir -p lambda/seed-data
+      - curl -o lambda/seed-data/countries.sql https://raw.githubusercontent.com/adityatoshniwal/postgis-sample-dataset/main/countries.sql
   build:
     commands:
       - echo "Running sam build"
       - sam build
       - echo "Packaging to S3 bucket configured in samconfig.toml"
       - sam package --s3-bucket iw-demo-cfn-artifacts-us-east-1 --output-template-file packaged.yaml
-  post_build:
-    commands:
-      - mkdir -p seed-data
-      - curl -o seed-data/countries.sql https://raw.githubusercontent.com/adityatoshniwal/postgis-sample-dataset/main/countries.sql
 artifacts:
   files:
     - packaged.yaml
-    - seed-data/countries.sql

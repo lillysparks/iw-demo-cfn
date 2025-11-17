@@ -64,8 +64,9 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
       code: (error as any)?.code,
       errno: (error as any)?.errno,
     });
-    // Don't re-throw; let the Lambda continue (seeding is optional for queries)
+    // Mark as seeded to avoid retry loop, but log the failure
     isSeeded = true;
+    console.warn('Seeding failed but marked as complete to prevent retry loop');
   } finally {
     if (client) {
       client.release();
