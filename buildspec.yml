@@ -23,7 +23,6 @@ phases:
       - sam package --s3-bucket iw-demo-cfn-artifacts-us-east-1 --output-template-file packaged.yaml
   post_build:
     commands:
-      - echo Post-build: Downloading seed data
       - mkdir -p seed-data
       - curl -o seed-data/countries.sql https://raw.githubusercontent.com/adityatoshniwal/postgis-sample-dataset/main/countries.sql
 artifacts:
