@@ -251,6 +251,21 @@ Resources:
       RouteKey: "POST /graphql"
       Target: !Join [ "/", [ "integrations", !Ref GraphQLIntegration ] ]
 
+  HealthIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref GraphQLApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GraphQLLambda.Arn}:health/invocations
+      PayloadFormatVersion: "2.0"
+
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref GraphQLApi
+      RouteKey: "GET /health"
+      Target: !Join [ "/", [ "integrations", !Ref HealthIntegration ] ]
+
   GraphQLStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:

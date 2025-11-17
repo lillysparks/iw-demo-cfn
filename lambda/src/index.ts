@@ -50,10 +50,27 @@ const resolvers = {
 };
 
 const server = new ApolloServer({ typeDefs, resolvers });
+
+// Health check handler (no DB/Cognito required)
+export const healthHandler = async (
+  event: APIGatewayProxyEventV2
+): Promise<{
+  statusCode: number;
+  body: string;
+}> => {
+  console.log("Health check invoked");
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: "OK", timestamp: new Date().toISOString() }),
+  };
+};
+
+// GraphQL handler
 export const graphqlHandler = startServerAndCreateLambdaHandler(server, {
   context: async ({ event }: { event: APIGatewayProxyEventV2 }) => {
     const user = await verifyToken(event.headers?.authorization);
     return { user };
   },
 } as any); // check on type error
+
 
