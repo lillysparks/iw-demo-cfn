@@ -15,7 +15,12 @@ phases:
   build:
     commands:
       - sam build
-      - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+      - sam package \
+          --s3-bucket $ARTIFACT_BUCKET \
+          --output-template-file packaged.yaml
+      - sam deploy \
+          --template-file packaged.yaml \
           --stack-name graphql-demo \
           --capabilities CAPABILITY_IAM \
-          --region us-east-1
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset
