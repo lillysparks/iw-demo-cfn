@@ -14,8 +14,21 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
     return;
   }
 
-  const client = await getClient();
+  console.log('seedDatabaseIfNeeded: starting');
+  console.log('Environment vars:', {
+    DB_HOST: process.env.DB_HOST,
+    DB_PORT: process.env.DB_PORT,
+    DB_USER: process.env.DB_USER,
+    DB_NAME: process.env.DB_NAME,
+    hasPassword: !!process.env.DB_PASSWORD,
+  });
+
+  let client;
   try {
+    console.log('Attempting to get DB client...');
+    client = await getClient();
+    console.log('DB client acquired successfully');
+    
     // Check if countries table exists
     const result = await client.query(
       `SELECT EXISTS (
@@ -46,9 +59,16 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
     isSeeded = true;
   } catch (error) {
     console.error('Error during database seeding:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      code: (error as any)?.code,
+      errno: (error as any)?.errno,
+    });
     // Don't re-throw; let the Lambda continue (seeding is optional for queries)
     isSeeded = true;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
