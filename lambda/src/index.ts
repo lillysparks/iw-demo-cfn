@@ -2,16 +2,10 @@ import { ApolloServer } from "@apollo/server";
 import { startServerAndCreateLambdaHandler, handlers } from "@as-integrations/aws-lambda";
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
-import { Pool } from "pg";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
+import { mergeResolvers } from "./resolvers";
+import { seedDatabaseIfNeeded } from "./db/seeder";
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
 
 const client = jwksClient({
   jwksUri: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`,
@@ -41,13 +35,19 @@ async function verifyToken(authHeader?: string) {
   );
 }
 
-const typeDefs = `type Query { hello: String }`;
-const resolvers = {
-  Query: {
-    hello: (_: any, __: any, ctx: any) =>
-      `Hello ${ctx.user?.email || "guest"} from Aurora + Cognito!`,
-  },
-};
+const typeDefs = `
+  type Query {
+    hello: String
+    countries: [Country!]!
+  }
+
+  type Country {
+    id: Int
+    name: String!
+  }
+`;
+
+const resolvers = mergeResolvers();
 
 const server = new ApolloServer({ typeDefs, resolvers });
 
@@ -94,6 +94,9 @@ const apolloHandler = startServerAndCreateLambdaHandler(
 
 // Dispatch wrapper: route GET /health to healthHandler, everything else to Apollo
 export const graphqlHandler = async (event: any, context: any, callback?: any) => {
+  // Seed database on first invocation
+  await seedDatabaseIfNeeded();
+
   const method = event?.requestContext?.http?.method || event?.httpMethod || '';
   const path = event?.rawPath || event?.requestContext?.http?.path || event?.path || '';
 
