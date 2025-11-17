@@ -311,6 +311,7 @@ Resources:
                 StackName: iw-demo-cfn
                 Capabilities: CAPABILITY_IAM
                 TemplatePath: BuildOutput::packaged.yaml
+                RoleArn: !GetAtt CloudFormationDeployRole.Arn
               RunOrder: 1
   
   GraphQLBuildProject:
@@ -327,6 +328,29 @@ Resources:
       Source:
         Type: CODEPIPELINE
       TimeoutInMinutes: 30
+
+  # IAM role for CloudFormation Deploy action
+  CloudFormationDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Policies:
+        - PolicyName: CloudFormationDeployPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: "*"
+                Resource: "*"
+
 
   # IAM role for CodePipeline itself
   PipelineRole:
