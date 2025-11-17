@@ -17,3 +17,4 @@ region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
 fail_on_empty_changeset = false
+parameter_overrides = "PipelineBucketName=iw-demo-cfn-artifacts-us-east-1 AuroraSecretArn=arn:aws:secretsmanager:us-east-1:920671455518:secret:AuroraSecret-Egw1Zv"
