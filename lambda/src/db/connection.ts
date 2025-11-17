@@ -10,8 +10,9 @@ export function getPool(): Pool {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 30000,
+      max: 5,
     });
     
     // Log connection config for debugging (without password)

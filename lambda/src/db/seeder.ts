@@ -29,6 +29,11 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
     client = await getClient();
     console.log('DB client acquired successfully');
     
+    // Simple connection test
+    console.log('Testing connection with SELECT 1...');
+    await client.query('SELECT 1');
+    console.log('Connection test successful');
+    
     // Check if countries table exists
     const result = await client.query(
       `SELECT EXISTS (
