@@ -58,10 +58,14 @@ export const healthHandler = async (
   statusCode: number;
   body: string;
 }> => {
-  console.log("Health check invoked");
+  console.log("Health check invoked via path:", event.rawPath);
   return {
     statusCode: 200,
-    body: JSON.stringify({ message: "OK", timestamp: new Date().toISOString() }),
+    body: JSON.stringify({
+      message: "OK",
+      timestamp: new Date().toISOString(),
+      path: event.rawPath,
+    }),
   };
 };
 
