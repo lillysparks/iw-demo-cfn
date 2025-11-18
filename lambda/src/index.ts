@@ -42,6 +42,7 @@ const typeDefs = `
   }
 
   type Mutation {
+    testDbConnection: MutationResult!
     initCountriesTable: MutationResult!
   }
 
