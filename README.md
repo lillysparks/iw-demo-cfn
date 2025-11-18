@@ -4,11 +4,76 @@ A production-ready GraphQL API built with Apollo Server 5, TypeScript, and Auror
 
 ## Architecture
 
-<a href="readme-mermaid-iw-demo-cfn.png" target="_blank">
-  <img src="readme-mermaid-iw-demo-cfn.png" alt="Architecture Diagram" width="600"/>
-</a>
-
-*Click to view full-size diagram*
+```mermaid
+graph TB
+    subgraph Internet
+        Client[Client Browser/App]
+    end
+    
+    subgraph AWS["AWS Cloud (us-east-1)"]
+        subgraph VPC["VPC (10.0.0.0/16)"]
+            subgraph PublicSubnet["Public Subnet<br/>(10.0.1.0/24)"]
+                IGW[Internet Gateway]
+                NAT[NAT Gateway<br/>+ Elastic IP]
+            end
+            
+            subgraph PrivateSubnets["Private Subnets (Multi-AZ)"]
+                subgraph PrivateA["Private Subnet A<br/>(10.0.2.0/24)"]
+                    Lambda1[Lambda Function<br/>Apollo Server 5<br/>Node.js 18]
+                    Aurora1[Aurora PostgreSQL<br/>Serverless v2<br/>PostgreSQL 16.1 + PostGIS]
+                end
+                
+                subgraph PrivateB["Private Subnet B<br/>(10.0.3.0/24)"]
+                    Lambda2[Lambda Function<br/>Replica]
+                    Aurora2[Aurora PostgreSQL<br/>Replica]
+                end
+            end
+        end
+        
+        APIGW[API Gateway HTTP API<br/>POST /graphql<br/>GET /health]
+        Cognito[Cognito User Pool<br/>JWT Authentication]
+        Secrets[Secrets Manager<br/>DB Credentials]
+        
+        subgraph CICD["CI/CD Pipeline (Separate Stack)"]
+            GitHub[GitHub Repository]
+            Pipeline[CodePipeline]
+            Build[CodeBuild<br/>npm test + sam build]
+            CFN[CloudFormation]
+            S3[S3 Artifacts Bucket]
+        end
+    end
+    
+    Client -->|HTTPS| APIGW
+    APIGW -->|AWS_PROXY| Lambda1
+    APIGW -->|AWS_PROXY| Lambda2
+    Lambda1 -->|SQL Query| Aurora1
+    Lambda2 -->|SQL Query| Aurora2
+    Lambda1 -.->|Verify JWT| Cognito
+    Lambda2 -.->|Verify JWT| Cognito
+    Lambda1 -.->|Get Credentials| Secrets
+    Lambda2 -.->|Get Credentials| Secrets
+    Lambda1 -->|Outbound Internet| NAT
+    Lambda2 -->|Outbound Internet| NAT
+    NAT --> IGW
+    IGW -->|Public Internet| Client
+    
+    GitHub -->|Push to main| Pipeline
+    Pipeline -->|Trigger| Build
+    Build -->|Upload| S3
+    Build -->|Deploy| CFN
+    CFN -.->|Update| Lambda1
+    CFN -.->|Update| APIGW
+    CFN -.->|Update| Aurora1
+    
+    style Lambda1 fill:#ff9900
+    style Lambda2 fill:#ff9900
+    style Aurora1 fill:#3b48cc
+    style Aurora2 fill:#3b48cc
+    style APIGW fill:#ff4f8b
+    style Cognito fill:#dd344c
+    style NAT fill:#7aa116
+    style IGW fill:#7aa116
+```
 
 This project uses a modular nested CloudFormation stack structure:
 
