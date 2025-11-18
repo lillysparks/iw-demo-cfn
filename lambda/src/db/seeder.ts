@@ -106,6 +106,11 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
       if (fs.existsSync(seedFile)) {
         let sql = fs.readFileSync(seedFile, 'utf-8');
         
+        // Fix incorrect schema references (countries.capitals -> capitals, countries.countries -> countries)
+        console.log('Fixing schema references...');
+        sql = sql.replace(/countries\.capitals/g, 'capitals');
+        sql = sql.replace(/countries\.countries/g, 'countries');
+        
         // Convert COPY ... FROM stdin format to INSERT statements
         console.log('Parsing and converting COPY statements to INSERTs...');
         sql = convertCopyToInsert(sql);
