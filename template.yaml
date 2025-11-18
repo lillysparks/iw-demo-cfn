@@ -154,7 +154,8 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          CidrIp: 10.0.0.0/16
+          Description: Allow all VPC traffic temporarily for debugging
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
