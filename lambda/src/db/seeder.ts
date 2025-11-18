@@ -47,6 +47,11 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
     if (!tableExists) {
       console.log('Countries table not found, seeding database...');
       
+      // Enable PostGIS extension first
+      console.log('Enabling PostGIS extension...');
+      await client.query('CREATE EXTENSION IF NOT EXISTS postgis');
+      console.log('PostGIS extension enabled');
+      
       // Path to seed file bundled in Lambda
       const seedFile = path.join(process.cwd(), 'seed-data', 'countries.sql');
 
