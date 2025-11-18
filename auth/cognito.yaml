@@ -32,12 +32,6 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_SRP_AUTH
 
-  GraphQLUserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Sub "${StackName}-graphql"
-      UserPoolId: !Ref GraphQLUserPool
-
 Outputs:
   UserPoolId:
     Description: Cognito User Pool ID
