@@ -82,18 +82,10 @@ Resources:
       TimeoutInMinutes: 10
 
   # --- CI/CD Layer ---
-  PipelineStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/pipeline/cicd.yaml"
-      Parameters:
-        PipelineBucketName: !Ref PipelineBucketName
-        GitHubConnectionArn: arn:aws:codeconnections:us-east-1:920671455518:connection/3d4db5bf-d87c-47bb-83d8-3faf92ba204e
-        GitHubRepository: lillysparks/iw-demo-cfn
-        GitHubBranch: main
-        MainStackName: !Ref AWS::StackName
-        AuroraSecretArn: !Ref AuroraSecretArn
-      TimeoutInMinutes: 10
+  # Note: PipelineStack is not included here to avoid resource conflicts.
+  # The pipeline (CodePipeline + CodeBuild) is managed separately and already exists.
+  # To bootstrap a new pipeline, manually deploy pipeline/cicd.yaml as a separate stack.
+  # The pipeline then manages deployments of this main stack.
 
 Outputs:
   GraphQLApiEndpoint:
@@ -121,11 +113,3 @@ Outputs:
     Value: !Ref PipelineBucketName
     Export:
       Name: !Sub "${AWS::StackName}-ArtifactBucket"
-
-  PipelineConsoleUrl:
-    Description: Console URL to view the CodePipeline
-    Value: !GetAtt PipelineStack.Outputs.PipelineConsoleUrl
-
-  PipelineName:
-    Description: Name of the CodePipeline
-    Value: !GetAtt PipelineStack.Outputs.PipelineName
