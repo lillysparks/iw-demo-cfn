@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Aurora PostgreSQL Database
+
+Parameters:
+  PrivateSubnetAId:
+    Type: String
+    Description: Private Subnet A ID
+  PrivateSubnetBId:
+    Type: String
+    Description: Private Subnet B ID
+  AuroraSecurityGroupId:
+    Type: String
+    Description: Aurora Security Group ID
+  AuroraSecretArn:
+    Type: String
+    Description: ARN of Secrets Manager secret containing DB credentials
+
+Resources:
+  AuroraSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Aurora private subnets
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      DBSubnetGroupName: GraphQLAuroraSubnetGroup
+
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: "14.6"
+      DBClusterIdentifier: aurora-postgis-cluster
+      Port: 5432
+      MasterUsername: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
+      BackupRetentionPeriod: 1
+      DBSubnetGroupName: !Ref AuroraSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref AuroraSecurityGroupId
+
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceClass: db.t3.medium
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      PubliclyAccessible: false
+
+Outputs:
+  AuroraClusterEndpoint:
+    Description: Aurora Cluster Endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-ClusterEndpoint"
+
+  AuroraInstanceEndpoint:
+    Description: Aurora Instance Endpoint
+    Value: !GetAtt AuroraInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-InstanceEndpoint"
+
+  AuroraInstancePort:
+    Description: Aurora Instance Port
+    Value: !GetAtt AuroraInstance.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-InstancePort"

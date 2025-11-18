@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GraphQL Lambda Function
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 30
+    MemorySize: 512
+
+Parameters:
+  PrivateSubnetAId:
+    Type: String
+    Description: Private Subnet A ID
+  PrivateSubnetBId:
+    Type: String
+    Description: Private Subnet B ID
+  LambdaSecurityGroupId:
+    Type: String
+    Description: Lambda Security Group ID
+  DBHost:
+    Type: String
+    Description: Aurora Instance Endpoint
+  DBPort:
+    Type: String
+    Description: Aurora Instance Port
+  AuroraSecretArn:
+    Type: String
+    Description: ARN of Secrets Manager secret
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+  CognitoClientId:
+    Type: String
+    Description: Cognito Client ID
+  CognitoIssuer:
+    Type: String
+    Description: Cognito Issuer URL
+
+Resources:
+  GraphQLLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: AuroraSecretAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref AuroraSecretArn
+
+  GraphQLLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: GraphQLApiLambda
+      Handler: dist/index.graphqlHandler
+      CodeUri: lambda/
+      Role: !GetAtt GraphQLLambdaRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnetAId
+          - !Ref PrivateSubnetBId
+      Environment:
+        Variables:
+          DB_HOST: !Ref DBHost
+          DB_PORT: !Ref DBPort
+          DB_USER: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
+          DB_PASSWORD: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
+          DB_NAME: postgres
+          DB_SECRET_ARN: !Ref AuroraSecretArn
+          COGNITO_USERPOOL_ID: !Ref CognitoUserPoolId
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          COGNITO_ISSUER: !Ref CognitoIssuer
+
+Outputs:
+  LambdaArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt GraphQLLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaArn"
+
+  LambdaName:
+    Description: Lambda Function Name
+    Value: !Ref GraphQLLambda
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaName"

@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cognito User Pool for GraphQL authentication
+
+Parameters:
+  StackName:
+    Type: String
+    Description: Main stack name for naming resources
+
+Resources:
+  GraphQLUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: GraphQLUserPool
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  GraphQLUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: GraphQLAppClient
+      UserPoolId: !Ref GraphQLUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+
+  GraphQLUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "${StackName}-graphql"
+      UserPoolId: !Ref GraphQLUserPool
+
+Outputs:
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref GraphQLUserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref GraphQLUserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolClientId"
+
+  UserPoolIssuer:
+    Description: Cognito Issuer URL
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${GraphQLUserPool}"
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolIssuer"

@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: API Gateway for GraphQL endpoint
+
+Parameters:
+  LambdaArn:
+    Type: String
+    Description: Lambda Function ARN
+  LambdaName:
+    Type: String
+    Description: Lambda Function Name
+
+Resources:
+  GraphQLApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: GraphQLApi
+      ProtocolType: HTTP
+
+  GraphQLIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref GraphQLApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+      PayloadFormatVersion: "2.0"
+
+  GraphQLRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref GraphQLApi
+      RouteKey: "POST /graphql"
+      Target: !Join [ "/", [ "integrations", !Ref GraphQLIntegration ] ]
+
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref GraphQLApi
+      RouteKey: "GET /health"
+      Target: !Join [ "/", [ "integrations", !Ref GraphQLIntegration ] ]
+
+  GraphQLStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref GraphQLApi
+      StageName: dev
+      AutoDeploy: true
+
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaName
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GraphQLApi}/*/*"
+
+Outputs:
+  ApiEndpoint:
+    Description: GraphQL API Endpoint
+    Value: !Sub "https://${GraphQLApi}.execute-api.${AWS::Region}.amazonaws.com/dev/graphql"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
+
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref GraphQLApi
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiId"
