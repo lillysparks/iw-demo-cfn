@@ -21,12 +21,12 @@ phases:
   build:
     commands:
       - echo "Building Lambda with SAM"
-      - sam build --template application/lambda.yaml --build-dir .aws-sam/build
+      - sam build --template application/lambda.yaml
       - echo "Packaging Lambda stack"
-      - sam package --template .aws-sam/build/template.yaml --s3-bucket iw-demo-cfn-artifacts-us-east-1 --output-template-file application/lambda-packaged.yaml
+      - sam package --template .aws-sam/build/template.yaml --s3-bucket iw-demo-cfn-artifacts-us-east-1 --output-template-file .aws-sam/lambda-packaged.yaml
       - echo "Uploading nested stack templates to S3"
       - aws s3 cp infrastructure/ s3://iw-demo-cfn-artifacts-us-east-1/infrastructure/ --recursive --exclude "*" --include "*.yaml"
-      - aws s3 cp application/lambda-packaged.yaml s3://iw-demo-cfn-artifacts-us-east-1/application/lambda.yaml
+      - aws s3 cp .aws-sam/lambda-packaged.yaml s3://iw-demo-cfn-artifacts-us-east-1/application/lambda.yaml
       - aws s3 cp application/api.yaml s3://iw-demo-cfn-artifacts-us-east-1/application/api.yaml
       - aws s3 cp auth/ s3://iw-demo-cfn-artifacts-us-east-1/auth/ --recursive --exclude "*" --include "*.yaml"
       - aws s3 cp pipeline/ s3://iw-demo-cfn-artifacts-us-east-1/pipeline/ --recursive --exclude "*" --include "*.yaml"
