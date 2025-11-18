@@ -42,8 +42,6 @@ const typeDefs = `
   }
 
   type Mutation {
-    testDnsResolution: MutationResult!
-    testDbConnection: MutationResult!
     initCountriesTable: MutationResult!
   }
 
