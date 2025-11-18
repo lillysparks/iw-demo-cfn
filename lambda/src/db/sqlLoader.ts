@@ -28,12 +28,13 @@ export async function loadSqlFile(filePath: string): Promise<void> {
 
 /**
  * Execute a SQL string directly using the pool.
+ * Supports parameterized queries for SQL injection prevention.
  */
-export async function executeSql(sql: string): Promise<any> {
+export async function executeSql(sql: string, params?: any[]): Promise<any> {
   console.log('executeSql: getting pool and running query...');
   const pool = getPool();
   try {
-    const result = await pool.query(sql);
+    const result = await pool.query(sql, params);
     console.log('executeSql: query completed successfully');
     return result;
   } catch (error) {
