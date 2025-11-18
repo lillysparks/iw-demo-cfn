@@ -5,6 +5,54 @@ import * as path from 'path';
 let isSeeded = false;
 
 /**
+ * Convert PostgreSQL COPY ... FROM stdin format to INSERT statements
+ */
+function convertCopyToInsert(sql: string): string {
+  const lines = sql.split('\n');
+  const result: string[] = [];
+  let inCopyBlock = false;
+  let tableName = '';
+  let columns = '';
+  
+  for (const line of lines) {
+    const copyMatch = line.match(/^COPY\s+(\w+)\s*\(([^)]+)\)\s+FROM\s+stdin;/i);
+    
+    if (copyMatch) {
+      // Start of COPY block
+      inCopyBlock = true;
+      tableName = copyMatch[1];
+      columns = copyMatch[2];
+      console.log(`Converting COPY for table: ${tableName}`);
+      continue;
+    }
+    
+    if (line === '\\.' || line.trim() === '\\.') {
+      // End of COPY block
+      inCopyBlock = false;
+      tableName = '';
+      columns = '';
+      continue;
+    }
+    
+    if (inCopyBlock && line.trim()) {
+      // Convert data line to INSERT
+      const values = line.split('\t').map(v => {
+        if (!v || v === '\\N') return 'NULL';
+        // Escape single quotes and wrap in quotes
+        return `'${v.replace(/'/g, "''")}'`;
+      }).join(', ');
+      
+      result.push(`INSERT INTO ${tableName} (${columns}) VALUES (${values});`);
+    } else if (!inCopyBlock) {
+      // Keep non-COPY statements as-is
+      result.push(line);
+    }
+  }
+  
+  return result.join('\n');
+}
+
+/**
  * Seed the database on first Lambda invocation.
  * Checks if countries table exists; if not, loads seed data.
  */
@@ -47,11 +95,22 @@ export async function seedDatabaseIfNeeded(): Promise<void> {
     if (!tableExists) {
       console.log('Countries table not found, seeding database...');
       
+      // Enable PostGIS extension first
+      console.log('Enabling PostGIS extension...');
+      await client.query('CREATE EXTENSION IF NOT EXISTS postgis');
+      console.log('PostGIS extension enabled');
+      
       // Path to seed file bundled in Lambda
       const seedFile = path.join(process.cwd(), 'seed-data', 'countries.sql');
 
       if (fs.existsSync(seedFile)) {
-        const sql = fs.readFileSync(seedFile, 'utf-8');
+        let sql = fs.readFileSync(seedFile, 'utf-8');
+        
+        // Convert COPY ... FROM stdin format to INSERT statements
+        console.log('Parsing and converting COPY statements to INSERTs...');
+        sql = convertCopyToInsert(sql);
+        
+        // Execute the converted SQL
         await client.query(sql);
         console.log('Successfully seeded countries table.');
       } else {

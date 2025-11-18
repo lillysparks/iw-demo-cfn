@@ -76,16 +76,40 @@ After deployment, the API is available at:
 https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql
 ```
 
-Health check:
+#### Testing Commands
+
+**Health Check** - Verify the Lambda function is responding:
 ```bash
-curl https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/health
+curl -X GET https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/health
 ```
 
-Query example:
+**Hello Query** - Test basic GraphQL resolver:
+```bash
+curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ hello }"}'
+```
+
+**Countries Query** - Test database connectivity and data seeding:
 ```bash
 curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ countries { id name } }"}'
+```
+
+**Authenticated Query** - Test with Cognito JWT token:
+```bash
+curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -d '{"query":"{ countries { id name } }"}'
+```
+
+**Schema Introspection** - View available queries and types:
+```bash
+curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ __schema { queryType { name fields { name } } } }"}'
 ```
 
 ## Database Seeding
