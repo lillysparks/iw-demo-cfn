@@ -259,7 +259,7 @@ Resources:
           - !Ref PrivateSubnetB
       Environment:
         Variables:
-          DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
+          DB_HOST: !GetAtt AuroraInstance.Endpoint.Address
           DB_PORT: "5432"
           DB_USER: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
           DB_PASSWORD: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
