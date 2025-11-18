@@ -1,12 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Apollo GraphQL API with Aurora Postgres + PostGIS
+Description: Apollo GraphQL API with Aurora Postgres + PostGIS - Main Stack
 Transform: AWS::Serverless-2016-10-31
-
-Globals:
-  Function:
-    Runtime: nodejs18.x
-    Timeout: 30
-    MemorySize: 512
 
 Parameters:
   PipelineBucketName:
@@ -17,534 +11,111 @@ Parameters:
     Description: ARN of an existing Secrets Manager secret containing DB credentials
 
 Resources:
-
-  # --- VPC ---
-  GraphQLVPC:
-    Type: AWS::EC2::VPC
+  # --- Infrastructure Layer ---
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: GraphQLVPC
-
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-
-  VPCGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref GraphQLVPC
-      InternetGatewayId: !Ref InternetGateway
-
-  # --- Public Subnet (Lambda goes here for demo to avoid NAT Gateway cost) ---
-  PublicSubnetA:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref GraphQLVPC
-      CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: PublicSubnetA
-
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref GraphQLVPC
-
-  PublicRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  PublicSubnetARouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnetA
-      RouteTableId: !Ref PublicRouteTable
-
-  # NAT Gateway for private subnets to reach internet
-  NatGatewayEIP:
-    Type: AWS::EC2::EIP
-    DependsOn: VPCGatewayAttachment
-    Properties:
-      Domain: vpc
-
-  NatGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatGatewayEIP.AllocationId
-      SubnetId: !Ref PublicSubnetA
-      Tags:
-        - Key: Name
-          Value: NatGateway
-
-  # --- Private Subnets (Aurora goes here, best practice) ---
-  PrivateSubnetA:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref GraphQLVPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
-      MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: PrivateSubnetA
-
-  PrivateSubnetB:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref GraphQLVPC
-      CidrBlock: 10.0.3.0/24
-      AvailabilityZone: !Select [ 1, !GetAZs '' ]
-      MapPublicIpOnLaunch: false
-      Tags:
-        - Key: Name
-          Value: PrivateSubnetB
-
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref GraphQLVPC
-      Tags:
-        - Key: Name
-          Value: PrivateRT
-
-  PrivateRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway
-
-  PrivateSubnetARouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnetA
-      RouteTableId: !Ref PrivateRouteTable
-
-  PrivateSubnetBRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PrivateSubnetB
-      RouteTableId: !Ref PrivateRouteTable
-
-  # --- Aurora DB Subnet Group (Aurora requires at least two AZs) ---
-  AuroraSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Aurora private subnets
-      SubnetIds:
-        - !Ref PrivateSubnetA
-        - !Ref PrivateSubnetB
-      DBSubnetGroupName: GraphQLAuroraSubnetGroup
-
-  # --- Security Groups ---
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Lambda SG
-      VpcId: !Ref GraphQLVPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-  AuroraSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow Lambda access to Aurora
-      VpcId: !Ref GraphQLVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
-          Description: Allow Lambda access to Aurora
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
-
-  # --- Cognito User Pool ---
-  GraphQLUserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: GraphQLUserPool
-      AutoVerifiedAttributes:
-        - email
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: false
-
-  GraphQLUserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: GraphQLAppClient
-      UserPoolId: !Ref GraphQLUserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-
-  GraphQLUserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Sub "${AWS::StackName}-graphql"
-      UserPoolId: !Ref GraphQLUserPool
-
-  AuroraCluster:
-    Type: AWS::RDS::DBCluster
-    Properties:
-      Engine: aurora-postgresql
-      EngineVersion: "14.6"
-      DBClusterIdentifier: aurora-postgis-cluster
-      Port: 5432
-      MasterUsername: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
-      MasterUserPassword: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
-      BackupRetentionPeriod: 1
-      DBSubnetGroupName: !Ref AuroraSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref AuroraSecurityGroup
-
-  AuroraInstance:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBInstanceClass: db.t3.medium
-      Engine: aurora-postgresql
-      DBClusterIdentifier: !Ref AuroraCluster
-      PubliclyAccessible: false
-
-  GraphQLLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Policies:
-        - PolicyName: AuroraSecretAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:DescribeSecret
-                Resource: !Ref AuroraSecretArn
-
-  GraphQLLambda:
-    Type: AWS::Serverless::Function
-    DependsOn: AuroraInstance
-    Properties:
-      FunctionName: GraphQLApiLambda
-      Handler: dist/index.graphqlHandler
-      CodeUri: lambda/
-      Role: !GetAtt GraphQLLambdaRole.Arn
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroup
-        SubnetIds:
-          - !Ref PrivateSubnetA
-          - !Ref PrivateSubnetB
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt AuroraInstance.Endpoint.Address
-          DB_PORT: "5432"
-          DB_USER: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
-          DB_PASSWORD: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:password}}"
-          DB_NAME: postgres
-          DB_SECRET_ARN: !Ref AuroraSecretArn
-          COGNITO_USERPOOL_ID: !Ref GraphQLUserPool
-          COGNITO_CLIENT_ID: !Ref GraphQLUserPoolClient
-          COGNITO_ISSUER: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${GraphQLUserPool}"
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /graphql
-            Method: post
-
-  # --- API Gateway ---
-  GraphQLApi:
-    Type: AWS::ApiGatewayV2::Api
-    Properties:
-      Name: GraphQLApi
-      ProtocolType: HTTP
-
-  GraphQLIntegration:
-    Type: AWS::ApiGatewayV2::Integration
-    Properties:
-      ApiId: !Ref GraphQLApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GraphQLLambda.Arn}/invocations
-      PayloadFormatVersion: "2.0"
-
-  GraphQLRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref GraphQLApi
-      RouteKey: "POST /graphql"
-      Target: !Join [ "/", [ "integrations", !Ref GraphQLIntegration ] ]
-
-  HealthRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref GraphQLApi
-      RouteKey: "GET /health"
-      Target: !Join [ "/", [ "integrations", !Ref GraphQLIntegration ] ]
-
-  GraphQLStage:
-    Type: AWS::ApiGatewayV2::Stage
-    Properties:
-      ApiId: !Ref GraphQLApi
-      StageName: dev
-      AutoDeploy: true
-
-  # Lambda permission for API Gateway to invoke
-  ApiGatewayInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref GraphQLLambda
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${GraphQLApi}/*/*"
-
-  # CodePipeline definition
-  GraphQLPipeline:
-    Type: AWS::CodePipeline::Pipeline
-    Properties:
-      RoleArn: !GetAtt PipelineRole.Arn
-      ArtifactStore:
-        Type: S3
-        Location: !Ref PipelineBucketName
-      Stages:
-        - Name: Source
-          Actions:
-            - Name: GitHubSource
-              ActionTypeId:
-                Category: Source
-                Owner: AWS
-                Provider: CodeStarSourceConnection
-                Version: 1
-              OutputArtifacts:
-                - Name: SourceOutput
-              Configuration:
-                ConnectionArn: arn:aws:codeconnections:us-east-1:920671455518:connection/3d4db5bf-d87c-47bb-83d8-3faf92ba204e
-                FullRepositoryId: lillysparks/iw-demo-cfn
-                BranchName: main
-        - Name: Build
-          Actions:
-            - Name: BuildAction
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: 1
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: BuildOutput
-              Configuration:
-                ProjectName: GraphQLBuildProject
-        - Name: Deploy
-          Actions:
-            - Name: CloudFormationDeploy
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              InputArtifacts:
-                - Name: BuildOutput
-              Configuration:
-                ActionMode: CREATE_UPDATE
-                StackName: iw-demo-cfn
-                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
-                TemplatePath: BuildOutput::packaged.yaml
-                RoleArn: !GetAtt CloudFormationDeployRole.Arn
-                ParameterOverrides: '{"PipelineBucketName":"iw-demo-cfn-artifacts-us-east-1","AuroraSecretArn":"arn:aws:secretsmanager:us-east-1:920671455518:secret:AuroraSecret-Egw1Zv"}'
-              RunOrder: 1
-  
-  GraphQLBuildProject:
-    Type: AWS::CodeBuild::Project
-    Properties:
-      Name: GraphQLBuildProject
-      ServiceRole: !GetAtt BuildRole.Arn
-      Artifacts:
-        Type: CODEPIPELINE
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:7.0
-        Type: LINUX_CONTAINER
-      Source:
-        Type: CODEPIPELINE
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/infrastructure/network.yaml"
       TimeoutInMinutes: 30
 
-  # IAM role for CloudFormation Deploy action
-  CloudFormationDeployRole:
-    Type: AWS::IAM::Role
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkStack
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
-      Policies:
-        - PolicyName: CloudFormationDeployPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: "*"
-                Resource: "*"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/infrastructure/security.yaml"
+      Parameters:
+        VPCId: !GetAtt NetworkStack.Outputs.VPCId
+      TimeoutInMinutes: 10
 
-
-  # IAM role for CodePipeline itself
-  PipelineRole:
-    Type: AWS::IAM::Role
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - NetworkStack
+      - SecurityStack
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codepipeline.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: PipelinePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:GetBucketLocation
-                Resource: !Sub "arn:aws:s3:::${PipelineBucketName}/*"
-              - Effect: Allow
-                Action:
-                  - codestar-connections:UseConnection
-                Resource: arn:aws:codeconnections:us-east-1:920671455518:connection/3d4db5bf-d87c-47bb-83d8-3faf92ba204e
-              - Effect: Allow
-                Action:
-                  - cloudformation:CreateChangeSet
-                  - cloudformation:ExecuteChangeSet
-                  - cloudformation:DescribeChangeSet
-                  - cloudformation:DescribeStacks
-                  - cloudformation:UpdateStack
-                  - cloudformation:CreateStack
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - codebuild:StartBuild
-                  - codebuild:BatchGetBuilds
-                  - codebuild:BatchGetProjects
-                Resource: arn:aws:codebuild:us-east-1:920671455518:project/GraphQLBuildProject
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/infrastructure/database.yaml"
+      Parameters:
+        PrivateSubnetAId: !GetAtt NetworkStack.Outputs.PrivateSubnetAId
+        PrivateSubnetBId: !GetAtt NetworkStack.Outputs.PrivateSubnetBId
+        AuroraSecurityGroupId: !GetAtt SecurityStack.Outputs.AuroraSecurityGroupId
+        AuroraSecretArn: !Ref AuroraSecretArn
+      TimeoutInMinutes: 30
 
-
-  # IAM role for CodeBuild project
-  BuildRole:
-    Type: AWS::IAM::Role
+  # --- Authentication Layer ---
+  AuthStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: BuildPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # Allow CloudFormation deploy
-              - Effect: Allow
-                Action:
-                  - cloudformation:CreateChangeSet
-                  - cloudformation:ExecuteChangeSet
-                  - cloudformation:DescribeChangeSet
-                  - cloudformation:DescribeStacks
-                  - cloudformation:UpdateStack
-                  - cloudformation:CreateStack
-                Resource: "*"
-              # Allow S3 for artifacts
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:GetBucketLocation
-                Resource: "*"
-              # Allow Lambda packaging/deploy
-              - Effect: Allow
-                Action:
-                  - lambda:UpdateFunctionCode
-                  - lambda:CreateFunction
-                  - lambda:UpdateFunctionConfiguration
-                  - lambda:AddPermission
-                  - lambda:RemovePermission
-                  - lambda:GetPolicy
-                Resource: "*"
-              # Allow IAM role usage for stack resources
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource: "*"
-              # Allow Secrets Manager if your Lambda fetches DB creds
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:DescribeSecret
-                Resource: "*"
-              # Allow CloudWatch Logs for build output
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/auth/cognito.yaml"
+      Parameters:
+        StackName: !Ref AWS::StackName
+      TimeoutInMinutes: 10
+
+  # --- Application Layer ---
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - NetworkStack
+      - SecurityStack
+      - DatabaseStack
+      - AuthStack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/application/lambda.yaml"
+      Parameters:
+        PrivateSubnetAId: !GetAtt NetworkStack.Outputs.PrivateSubnetAId
+        PrivateSubnetBId: !GetAtt NetworkStack.Outputs.PrivateSubnetBId
+        LambdaSecurityGroupId: !GetAtt SecurityStack.Outputs.LambdaSecurityGroupId
+        DBHost: !GetAtt DatabaseStack.Outputs.AuroraInstanceEndpoint
+        DBPort: !GetAtt DatabaseStack.Outputs.AuroraInstancePort
+        AuroraSecretArn: !Ref AuroraSecretArn
+        CognitoUserPoolId: !GetAtt AuthStack.Outputs.UserPoolId
+        CognitoClientId: !GetAtt AuthStack.Outputs.UserPoolClientId
+        CognitoIssuer: !GetAtt AuthStack.Outputs.UserPoolIssuer
+      TimeoutInMinutes: 10
+
+  ApiStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: LambdaStack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/application/api.yaml"
+      Parameters:
+        LambdaArn: !GetAtt LambdaStack.Outputs.LambdaArn
+        LambdaName: !GetAtt LambdaStack.Outputs.LambdaName
+      TimeoutInMinutes: 10
+
+  # --- CI/CD Layer ---
+  PipelineStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${PipelineBucketName}/pipeline/cicd.yaml"
+      Parameters:
+        PipelineBucketName: !Ref PipelineBucketName
+        GitHubConnectionArn: arn:aws:codeconnections:us-east-1:920671455518:connection/3d4db5bf-d87c-47bb-83d8-3faf92ba204e
+        GitHubRepository: lillysparks/iw-demo-cfn
+        GitHubBranch: main
+        MainStackName: !Ref AWS::StackName
+        AuroraSecretArn: !Ref AuroraSecretArn
+      TimeoutInMinutes: 10
 
 Outputs:
-
   GraphQLApiEndpoint:
     Description: Public URL for the GraphQL API
-    Value: !Sub "https://${GraphQLApi}.execute-api.${AWS::Region}.amazonaws.com/dev/graphql"
+    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
 
   CognitoUserPoolId:
     Description: Cognito User Pool ID
-    Value: !Ref GraphQLUserPool
+    Value: !GetAtt AuthStack.Outputs.UserPoolId
 
   CognitoAppClientId:
     Description: Cognito App Client ID
-    Value: !Ref GraphQLUserPoolClient
+    Value: !GetAtt AuthStack.Outputs.UserPoolClientId
 
   AuroraClusterEndpoint:
     Description: Aurora Cluster Endpoint
-    Value: !GetAtt AuroraCluster.Endpoint.Address
+    Value: !GetAtt DatabaseStack.Outputs.AuroraClusterEndpoint
+
+  AuroraInstanceEndpoint:
+    Description: Aurora Instance Endpoint
+    Value: !GetAtt DatabaseStack.Outputs.AuroraInstanceEndpoint
 
   ArtifactBucketName:
     Description: S3 bucket for SAM/CodePipeline artifacts
@@ -554,8 +125,8 @@ Outputs:
 
   PipelineConsoleUrl:
     Description: Console URL to view the CodePipeline
-    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${GraphQLPipeline}/view?region=${AWS::Region}"
+    Value: !GetAtt PipelineStack.Outputs.PipelineConsoleUrl
 
   PipelineName:
     Description: Name of the CodePipeline
-    Value: !Ref GraphQLPipeline
+    Value: !GetAtt PipelineStack.Outputs.PipelineName
