@@ -39,11 +39,18 @@ const typeDefs = `
   type Query {
     hello: String
     countries: [Country!]!
+    nearestCountries(countryName: String!): [CountryWithDistance!]!
   }
 
   type Country {
     id: Int
     name: String!
+  }
+
+  type CountryWithDistance {
+    id: Int
+    name: String!
+    distance: Float!
   }
 `;
 
