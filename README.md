@@ -1,7 +1,14 @@
-# inkwell-demo-cfn
-CFN for the inkwell-demo GQL API and related resources
+# iw-demo-cfn
+
+A production-ready GraphQL API built with Apollo Server 5, TypeScript, and Aurora PostgreSQL with PostGIS for geospatial queries. This project demonstrates modern serverless architecture patterns, automated CI/CD, comprehensive testing, and infrastructure-as-code using nested CloudFormation stacks on AWS.
 
 ## Architecture
+
+<a href="readme-mermaid-iw-demo-cfn.png" target="_blank">
+  <img src="readme-mermaid-iw-demo-cfn.png" alt="Architecture Diagram" width="600"/>
+</a>
+
+*Click to view full-size diagram*
 
 This project uses a modular nested CloudFormation stack structure:
 
@@ -130,3 +137,17 @@ curl -X POST https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/graphql \
 ## Database Seeding
 
 The Lambda function automatically seeds the Aurora database with PostGIS country data on first invocation (cold start). The seed file is downloaded during the build process from the [PostGIS sample dataset](https://github.com/adityatoshniwal/postgis-sample-dataset).
+
+## Future Enhancements
+
+This project demonstrates production-ready patterns, but there are several improvements that could be added:
+
+- **Redis Caching Layer** - Add ElastiCache Redis for query result caching to reduce database load and improve response times for frequently accessed country data
+- **Multi-Environment Pipeline** - Extend CI/CD to support dev/staging/production environments with branch-based deployments (feature branches → dev, main → staging, tags → production) and environment-specific parameter files for stack configuration
+- **Blue/Green Deployments** - Implement Lambda aliases (blue/prod) with CodeDeploy for gradual traffic shifting and automatic rollback on CloudWatch alarm triggers
+- **DataLoader Implementation** - Implement Facebook's DataLoader pattern for batching and caching database queries within a single GraphQL request context
+- **GraphQL Subscriptions** - Add WebSocket support for real-time updates using Apollo Server subscriptions
+- **Observability Stack** - Integrate AWS X-Ray for distributed tracing and add custom CloudWatch metrics for GraphQL operation performance
+- **Schema Federation** - Refactor into federated GraphQL services as complexity grows beyond geospatial queries
+- **Rate Limiting** - Implement API Gateway usage plans or GraphQL query complexity analysis to prevent abuse
+- **Cost Optimization** - Implement Aurora Serverless v2 auto-pause for non-production environments and add S3 lifecycle policies for artifact cleanup
