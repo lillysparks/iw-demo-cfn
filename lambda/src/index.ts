@@ -41,18 +41,9 @@ const typeDefs = `
     countries: [Country!]!
   }
 
-  type Mutation {
-    initCountriesTable: MutationResult!
-  }
-
   type Country {
     id: Int
     name: String!
-  }
-
-  type MutationResult {
-    success: Boolean!
-    message: String!
   }
 `;
 
@@ -103,8 +94,8 @@ const apolloHandler = startServerAndCreateLambdaHandler(
 
 // Dispatch wrapper: route GET /health to healthHandler, everything else to Apollo
 export const graphqlHandler = async (event: any, context: any, callback?: any) => {
-  // Temporarily disable seeding to test if queries work
-  // await seedDatabaseIfNeeded();
+  // Seed database on first Lambda invocation (cold start)
+  await seedDatabaseIfNeeded();
 
   const method = event?.requestContext?.http?.method || event?.httpMethod || '';
   const path = event?.rawPath || event?.requestContext?.http?.path || event?.path || '';

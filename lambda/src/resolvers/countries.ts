@@ -19,35 +19,4 @@ export const countriesResolvers = {
       }
     },
   },
-
-  Mutation: {
-    /**
-     * Initialize the countries table with test data
-     */
-    initCountriesTable: async (_parent: any, _args: any, _context: any): Promise<{ success: boolean; message: string }> => {
-      try {
-        await executeSql(`
-          CREATE TABLE IF NOT EXISTS countries (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL
-          )
-        `);
-        
-        // Insert a few test countries
-        await executeSql(`
-          INSERT INTO countries (name) VALUES 
-            ('United States'),
-            ('Canada'),
-            ('Mexico')
-          ON CONFLICT DO NOTHING
-        `);
-        
-        return { success: true, message: 'Countries table initialized with test data' };
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error('Error initializing countries table:', error);
-        return { success: false, message: `Failed: ${errorMsg}` };
-      }
-    },
-  },
 };
