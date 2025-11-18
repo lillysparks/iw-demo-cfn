@@ -20,8 +20,13 @@ phases:
       - curl -o lambda/seed-data/countries.sql https://raw.githubusercontent.com/adityatoshniwal/postgis-sample-dataset/main/countries.sql
   build:
     commands:
+      - echo "Copying seed-data to lambda for packaging"
+      - cp -r lambda/seed-data .aws-sam/build/GraphQLLambda/ || true
       - echo "Building Lambda with SAM"
       - sam build --template application/lambda.yaml
+      - echo "Ensuring seed-data is in the build"
+      - mkdir -p .aws-sam/build/GraphQLLambda/seed-data
+      - cp lambda/seed-data/countries.sql .aws-sam/build/GraphQLLambda/seed-data/ || echo "Warning: seed data not found"
       - echo "Packaging Lambda stack"
       - sam package --template .aws-sam/build/template.yaml --s3-bucket iw-demo-cfn-artifacts-us-east-1 --output-template-file .aws-sam/lambda-packaged.yaml
       - echo "Uploading nested stack templates to S3"
