@@ -67,7 +67,7 @@ Resources:
     Properties:
       FunctionName: GraphQLApiLambda
       Handler: dist/index.graphqlHandler
-      CodeUri: lambda/
+      CodeUri: ../lambda/
       Role: !GetAtt GraphQLLambdaRole.Arn
       VpcConfig:
         SecurityGroupIds:
