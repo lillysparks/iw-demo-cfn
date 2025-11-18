@@ -20,6 +20,11 @@ phases:
       - curl -o lambda/seed-data/countries.sql https://raw.githubusercontent.com/adityatoshniwal/postgis-sample-dataset/main/countries.sql
   build:
     commands:
+      - echo "Uploading nested stack templates to S3"
+      - aws s3 cp infrastructure/ s3://iw-demo-cfn-artifacts-us-east-1/infrastructure/ --recursive --exclude "*" --include "*.yaml"
+      - aws s3 cp application/ s3://iw-demo-cfn-artifacts-us-east-1/application/ --recursive --exclude "*" --include "*.yaml"
+      - aws s3 cp auth/ s3://iw-demo-cfn-artifacts-us-east-1/auth/ --recursive --exclude "*" --include "*.yaml"
+      - aws s3 cp pipeline/ s3://iw-demo-cfn-artifacts-us-east-1/pipeline/ --recursive --exclude "*" --include "*.yaml"
       - echo "Running sam build"
       - sam build
       - echo "Packaging to S3 bucket configured in samconfig.toml"
