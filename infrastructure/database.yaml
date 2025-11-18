@@ -29,7 +29,7 @@ Resources:
     Type: AWS::RDS::DBCluster
     Properties:
       Engine: aurora-postgresql
-      EngineVersion: "14.6"
+      EngineVersion: "15.4"
       DBClusterIdentifier: aurora-postgis-cluster
       Port: 5432
       MasterUsername: !Sub "{{resolve:secretsmanager:${AuroraSecretArn}:SecretString:username}}"
