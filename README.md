@@ -12,6 +12,10 @@ This project uses a modular nested CloudFormation stack structure:
 
 The main `template.yaml` orchestrates these nested stacks with proper dependency management.
 
+### Lambda Function
+
+The Lambda function (`lambda/`) is a TypeScript-based GraphQL API server using Apollo Server 5. It connects to Aurora PostgreSQL via VPC networking, verifies JWT tokens from Cognito, and provides a GraphQL endpoint for querying country data. The function includes automatic database seeding with PostGIS sample data on cold starts.
+
 ## Deployment
 
 ### Initial Bootstrap
