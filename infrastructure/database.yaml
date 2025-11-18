@@ -38,11 +38,15 @@ Resources:
       DBSubnetGroupName: !Ref AuroraSubnetGroup
       VpcSecurityGroupIds:
         - !Ref AuroraSecurityGroupId
+      EnableHttpEndpoint: true
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 2
 
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceClass: db.t3.medium
+      DBInstanceClass: db.serverless
       Engine: aurora-postgresql
       DBClusterIdentifier: !Ref AuroraCluster
       PubliclyAccessible: false
