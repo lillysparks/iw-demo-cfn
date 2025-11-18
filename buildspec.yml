@@ -13,6 +13,8 @@ phases:
       - echo "Install & build lambda"
       - cd lambda
       - npm ci
+      - echo "Running tests"
+      - npm test
       - npm run build
       - cd ..
       - echo "Downloading seed data"
