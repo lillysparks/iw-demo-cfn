@@ -78,35 +78,43 @@ https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql
 
 #### Testing Commands
 
+**Set API ID** - Get the API Gateway ID from CloudFormation outputs:
+```bash
+API_ID=$(aws cloudformation describe-stacks \
+  --stack-name iw-demo-cfn \
+  --query 'Stacks[0].Outputs[?OutputKey==`GraphQLApiId`].OutputValue' \
+  --output text)
+```
+
 **Health Check** - Verify the Lambda function is responding:
 ```bash
-curl -X GET https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/health
+curl -X GET https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/health
 ```
 
 **Hello Query** - Test basic GraphQL resolver:
 ```bash
-curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+curl -X POST https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ hello }"}'
 ```
 
 **Countries Query** - Test database connectivity and data seeding:
 ```bash
-curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+curl -X POST https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ countries { id name } }"}'
 ```
 
 **Nearest Countries Query** - Find 5 nearest countries using PostGIS distance calculation:
 ```bash
-curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+curl -X POST https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ nearestCountries(countryName: \"France\") { id name distance } }"}'
 ```
 
 **Authenticated Query** - Test with Cognito JWT token:
 ```bash
-curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+curl -X POST https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your-jwt-token>" \
   -d '{"query":"{ countries { id name } }"}'
@@ -114,7 +122,7 @@ curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
 
 **Schema Introspection** - View available queries and types:
 ```bash
-curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+curl -X POST https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -H "Content-Type: application/json" \
   -d '{"query":"{ __schema { queryType { name fields { name } } } }"}'
 ```
