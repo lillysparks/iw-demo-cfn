@@ -31,7 +31,7 @@ export const countriesResolvers = {
       try {
         const query = `
           WITH source AS (
-            SELECT ST_Centroid(geom) as center
+            SELECT ST_Centroid(border) as center
             FROM countries
             WHERE name ILIKE $1
             LIMIT 1
@@ -41,11 +41,11 @@ export const countriesResolvers = {
             c.name,
             ST_Distance(
               source.center::geography,
-              ST_Centroid(c.geom)::geography
+              ST_Centroid(c.border)::geography
             ) / 1000 AS distance
           FROM countries c, source
           WHERE c.name NOT ILIKE $1
-          ORDER BY ST_Distance(source.center, ST_Centroid(c.geom))
+          ORDER BY ST_Distance(source.center, ST_Centroid(c.border))
           LIMIT 5
         `;
         

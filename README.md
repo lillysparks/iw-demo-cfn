@@ -97,6 +97,13 @@ curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
   -d '{"query":"{ countries { id name } }"}'
 ```
 
+**Nearest Countries Query** - Find 5 nearest countries using PostGIS distance calculation:
+```bash
+curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ nearestCountries(countryName: \"France\") { id name distance } }"}'
+```
+
 **Authenticated Query** - Test with Cognito JWT token:
 ```bash
 curl -X POST https://<api-id>.execute-api.us-east-1.amazonaws.com/dev/graphql \
